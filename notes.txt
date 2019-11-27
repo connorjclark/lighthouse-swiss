@@ -1,0 +1,7 @@
+node run.js collect ch https://www.coursehero.com/ https://www.coursehero.com/register/ https://www.coursehero.com/file/50477009/Doc-1-Keyword-Journal-4pdf/ https://www.coursehero.com/textbook-solutions/
+
+
+du -sh data/ch/js/*.js | sort -hr
+
+bundle-buddy data/ch/js/*.js.map
+
