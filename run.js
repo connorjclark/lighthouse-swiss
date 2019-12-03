@@ -1,17 +1,43 @@
+const yargs = require('yargs');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { SourceMapConsumer } = require('source-map');
 const { computeFileSizeMapOptimized, getDuplicates } = require('./lib.js');
 
-const mode = process.argv[2];
-const dir = 'data/' + process.argv[3];
-const urlAndNames = process.argv.slice(4).map(nameAndUrl => {
-  const split = nameAndUrl.split('=', 2);
-  return { name: split[0], url: split[1] };
-});
+const flags = yargs
+  .array('pages')
+  .string('dir')
+  .string('config-path')
+  // .string('mode')
+  .argv;
+
+let options = {
+  mode: 'collect', // remove?
+};
+
+if (flags.pages) {
+  options.pages = flags.pages.map(page => {
+    const split = page.split('=', 2);
+    return {name: split[0], url: split[1]};
+  });
+}
+
+if (flags.dir) {
+  options.dir = flags.dir;
+}
+
+if (flags.configPath) {
+  options = {
+    ...require(path.resolve(flags.configPath)),
+    ...options,
+  };
+}
+
+options.pages = options.pages || [];
+
 // assume all urls have same origin.
-const origin = new URL(urlAndNames[0].url).origin;
+const origin = new URL(options.pages[0].url).origin;
 
 function sanitize(str) {
   return str.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 100);
@@ -61,10 +87,13 @@ function printTable(table, options = {}) {
 }
 
 async function main() {
-  if (mode === 'collect') {
+  const dir = 'data/' + (options.dir || 'default');
+  const pages = options.pages;
+
+  if (options.mode === 'collect') {
     fs.mkdirSync(dir, { recursive: true });
 
-    for (const { url } of urlAndNames) {
+    for (const { url } of pages) {
       const urlSanitized = sanitize(url);
       const outputFolder = `${dir}/${urlSanitized}`;
       if (fs.existsSync(outputFolder)) continue;
@@ -81,7 +110,7 @@ async function main() {
     }
 
     const scriptData = {};
-    for (const { url } of urlAndNames) {
+    for (const { url } of pages) {
       const urlSanitized = sanitize(url);
       const outputFolder = `${dir}/${urlSanitized}`;
       const artifacts = require(path.resolve(outputFolder, 'artifacts', 'artifacts.json'));
@@ -124,7 +153,7 @@ async function main() {
       if (!data.map) continue;
 
       console.log('______', data.scriptUrl, bytesToKB(data.content.length), 'KB');
-      console.log('Pages:', data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '));
+      console.log('Pages:', data.seen.map(url => pages.find(un => un.url === url).name).sort().join(', '));
       const consumer = await new SourceMapConsumer(data.map);
       const files = computeFileSizeMapOptimized({ consumer, content: data.content }).files;
       const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
@@ -150,7 +179,7 @@ async function main() {
         return {
           key: trimSameOrigin(data.scriptUrl).slice(0, 100),
           'size (KB)': bytesToKB(data.content.length),
-          pages: data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '),
+          pages: data.seen.map(url => pages.find(un => un.url === url).name).sort().join(', '),
         };
       })
     );

@@ -1,5 +1,4 @@
-node run.js collect ch Home=https://www.coursehero.com/ Register=https://www.coursehero.com/register/ Doc=https://www.coursehero.com/file/11/030507/ TextbookSols=https://www.coursehero.com/textbook-solutions/
-
+node run.js --config-path ch-config.json
 
 du -sh data/ch/js/*.js | sort -hr
 

@@ -1,0 +1,29 @@
+{
+  "dir": "ch",
+  "pages": [
+    {
+      "name": "Home",
+      "url": "https://www.coursehero.com/"
+    },
+    {
+      "name": "Register",
+      "url": "https://www.coursehero.com/register/"
+    },
+    {
+      "name": "Doc",
+      "url": "https://www.coursehero.com/file/11/030507/"
+    },
+    {
+      "name": "Schools",
+      "url": "https://www.coursehero.com/study-materials/"
+    },
+    {
+      "name": "SchoolLanding",
+      "url": "https://www.coursehero.com/sitemap/schools/2339-University-of-Texas/"
+    },
+    {
+      "name": "CourseLanding",
+      "url": "https://www.coursehero.com/sitemap/schools/2339-University-of-Texas/departments/1175-BIO/"
+    }
+  ]
+}
