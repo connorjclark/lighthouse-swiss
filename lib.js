@@ -10,6 +10,8 @@ function computeFileSizeMapOptimized(sourceMapData) {
   consumer.computeColumnSpans();
 
   consumer.eachMapping(({ source, generatedLine, generatedColumn, lastGeneratedColumn }) => {
+    if (!source) return;
+
     // Lines are 1-based
     const line = lines[generatedLine - 1];
     if (line === null) {
