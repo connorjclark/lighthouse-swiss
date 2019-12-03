@@ -8,6 +8,8 @@ const { computeFileSizeMapOptimized, getDuplicates } = require('./lib.js');
 const flags = yargs
   .array('pages')
   .string('dir')
+  .string('filter-page')
+  .string('filter-script')
   .string('config-path')
   // .string('mode')
   .argv;
@@ -19,7 +21,7 @@ let options = {
 if (flags.pages) {
   options.pages = flags.pages.map(page => {
     const split = page.split('=', 2);
-    return {name: split[0], url: split[1]};
+    return { name: split[0], url: split[1] };
   });
 }
 
@@ -36,6 +38,12 @@ if (flags.configPath) {
 
 options.pages = options.pages || [];
 
+if (flags.filterPage) {
+  options.pages = options.pages.filter(page => {
+    return page.name.includes(flags.filterPage);
+  });
+}
+
 // assume all urls have same origin.
 const origin = new URL(options.pages[0].url).origin;
 
@@ -44,7 +52,7 @@ function sanitize(str) {
 }
 
 function sum(arr) {
-  return arr.reduce((acc, cur) => acc + cur);
+  return arr.reduce((acc, cur) => acc + cur, 0);
 }
 
 function sameOrigin(url) {
@@ -67,10 +75,11 @@ function bytesToKB(bytes) {
 function printTable(table, options = {}) {
   const { keyProp = 'key', sumProp, limit = 100 } = options;
 
+  table = table.filter(Boolean);
+
   const obj = {};
   const showRows = table.slice(0, limit || table.length);
   for (const row of showRows) {
-    if (!row) continue;
     const key = row[keyProp];
     const rest = { ...row };
     delete rest[keyProp];
@@ -125,13 +134,20 @@ async function main() {
             seen: [],
           };
         }
-
         scriptData[ScriptElement.src].seen.push(url);
       }
+
       for (const SourceMap of artifacts.SourceMaps) {
         if (!SourceMap.scriptUrl) continue;
         scriptData[SourceMap.scriptUrl].sourceMapUrl = SourceMap.sourceMapUrl;
         scriptData[SourceMap.scriptUrl].map = SourceMap.map;
+      }
+    }
+
+    if (flags.filterScript) {
+      const pattern = new RegExp(flags.filterScript, 'i');
+      for (const key of Object.keys(scriptData)) {
+        if (!pattern.test(key)) delete scriptData[key];
       }
     }
 
