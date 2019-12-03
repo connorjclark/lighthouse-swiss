@@ -21,6 +21,15 @@ function sameOrigin(url) {
   return new URL(url).origin === origin;
 }
 
+function trimSameOrigin(url) {
+  if (sameOrigin(url)) {
+    const url_ = new URL(url);
+    return url_.pathname + url_.search;
+  } else {
+    return url;
+  }
+}
+
 function bytesToKB(bytes) {
   return Math.round(bytes / 1000);
 }
@@ -120,15 +129,6 @@ async function main() {
     }
 
     console.log('====== javascript size and pages')
-
-    function trimSameOrigin(url) {
-      if (sameOrigin(url)) {
-        const url_ = new URL(url);
-        return url_.pathname + url_.search;
-      } else {
-        return url;
-      }
-    }
 
     printTable(
       Object.values(scriptData).sort((a, b) => b.content.length - a.content.length).map((data) => {
