@@ -21,6 +21,22 @@ function sameOrigin(url) {
   return new URL(url).origin === origin;
 }
 
+function bytesToKB(bytes) {
+  return Math.round(bytes / 1000);
+}
+
+function printTable(table, keyProp = 'key') {
+  const obj = {};
+  for (const row of table) {
+    if (!row) continue;
+    const key = row[keyProp];
+    const rest = { ...row };
+    delete rest[keyProp];
+    obj[key] = rest;
+  }
+  console.table(obj);
+}
+
 async function main() {
   if (mode === 'collect') {
     fs.mkdirSync(dir, { recursive: true });
@@ -84,22 +100,26 @@ async function main() {
     for (const data of Object.values(scriptData).sort((a, b) => b.content.length - a.content.length)) {
       if (!data.map) continue;
 
-      console.log('______', data.scriptUrl, data.content.length);
+      console.log('______', data.scriptUrl, bytesToKB(data.content.length), 'KB');
       const consumer = await new SourceMapConsumer(data.map);
       const files = computeFileSizeMapOptimized({ consumer, content: data.content }).files;
       const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
       const largest = sortedFiles.slice(0, 5);
       const rest = sortedFiles.slice(5);
-      for (const [file, size] of largest) {
-        console.log(file, size);
-      }
+      printTable(
+        largest.map(([file, size]) => {
+          return {
+            key: file,
+            'size (KB)': bytesToKB(size),
+          };
+        })
+      );
       if (rest.length) {
         console.log(`${rest.length} more ...`);
       }
     }
 
     console.log('====== javascript size and pages')
-    const table = {};
 
     function trimSameOrigin(url) {
       if (sameOrigin(url)) {
@@ -110,15 +130,17 @@ async function main() {
       }
     }
 
-    for (const data of Object.values(scriptData).sort((a, b) => b.content.length - a.content.length)) {
-      if (!sameOrigin(data.scriptUrl)) continue;
+    printTable(
+      Object.values(scriptData).sort((a, b) => b.content.length - a.content.length).map((data) => {
+        if (!sameOrigin(data.scriptUrl)) return;
 
-      table[trimSameOrigin(data.scriptUrl)] = {
-        'size (KB)': Math.round(data.content.length / 1024),
-        pages: data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '),
-      };
-    }
-    console.table(table);
+        return {
+          key: trimSameOrigin(data.scriptUrl),
+          'size (KB)': bytesToKB(data.content.length),
+          pages: data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '),
+        };
+      })
+    );
   }
 }
 
