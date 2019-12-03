@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { SourceMapConsumer } = require('source-map');
-const { computeFileSizeMapOptimized } = require('./lib.js');
+const { computeFileSizeMapOptimized, getDuplicates } = require('./lib.js');
 
 const mode = process.argv[2];
 const dir = 'data/' + process.argv[3];
@@ -15,6 +15,10 @@ const origin = new URL(urlAndNames[0].url).origin;
 
 function sanitize(str) {
   return str.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 100);
+}
+
+function sum(arr) {
+  return arr.reduce((acc, cur) => acc + cur);
 }
 
 function sameOrigin(url) {
@@ -34,16 +38,26 @@ function bytesToKB(bytes) {
   return Math.round(bytes / 1000);
 }
 
-function printTable(table, keyProp = 'key') {
+function printTable(table, options = {}) {
+  const { keyProp = 'key', sumProp, limit = 100 } = options;
+
   const obj = {};
-  for (const row of table) {
+  const showRows = table.slice(0, limit || table.length);
+  for (const row of showRows) {
     if (!row) continue;
     const key = row[keyProp];
     const rest = { ...row };
     delete rest[keyProp];
     obj[key] = rest;
   }
+  if (limit < table.length) {
+    const restRows = table.slice(limit);
+    const restRow = {};
+    if (sumProp) restRow[sumProp] = restRows.reduce((acc, cur) => acc + cur[sumProp], 0);
+    obj[`${restRows.length} more ...`] = restRow;
+  }
   console.table(obj);
+  console.log();
 }
 
 async function main() {
@@ -110,36 +124,48 @@ async function main() {
       if (!data.map) continue;
 
       console.log('______', data.scriptUrl, bytesToKB(data.content.length), 'KB');
+      console.log('Pages:', data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '));
       const consumer = await new SourceMapConsumer(data.map);
       const files = computeFileSizeMapOptimized({ consumer, content: data.content }).files;
       const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
-      const largest = sortedFiles.slice(0, 5);
-      const rest = sortedFiles.slice(5);
       printTable(
-        largest.map(([file, size]) => {
+        sortedFiles.map(([file, size]) => {
           return {
             key: file,
             'size (KB)': bytesToKB(size),
           };
-        })
+        }),
+        { sumProp: 'size (KB)', limit: 5 }
       );
-      if (rest.length) {
-        console.log(`${rest.length} more ...`);
-      }
     }
 
-    console.log('====== javascript size and pages')
+    const scriptsSize1p = sum(Object.values(scriptData).filter(d => sameOrigin(d.scriptUrl)).map(d => d.content.length));
+    const scriptsSizeAll = sum(Object.values(scriptData).map(d => d.content.length));
+    console.log('====== javascript size and pages', '1st party:', bytesToKB(scriptsSize1p), 'KB,', 'all:', bytesToKB(scriptsSizeAll), 'KB')
 
     printTable(
       Object.values(scriptData).sort((a, b) => b.content.length - a.content.length).map((data) => {
         if (!sameOrigin(data.scriptUrl)) return;
 
         return {
-          key: trimSameOrigin(data.scriptUrl),
+          key: trimSameOrigin(data.scriptUrl).slice(0, 100),
           'size (KB)': bytesToKB(data.content.length),
           pages: data.seen.map(url => urlAndNames.find(un => un.url === url).name).sort().join(', '),
         };
       })
+    );
+
+    const duplicateResults = await getDuplicates(scriptData);
+    console.log('===== bundle duplication', bytesToKB(duplicateResults.wastedBytes), 'KB');
+    printTable(
+      duplicateResults.items.map(item => {
+        return {
+          key: item.source,
+          'duplicated (KB)': bytesToKB(item.wastedBytes),
+          occurrence: item.multi.wastedBytes.length,
+        };
+      }),
+      { sumProp: 'duplicated (KB)', limit: 15 }
     );
   }
 }

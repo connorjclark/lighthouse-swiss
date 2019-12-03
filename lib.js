@@ -62,4 +62,39 @@ function computeFileSizeMapOptimized(sourceMapData) {
   };
 }
 
-module.exports.computeFileSizeMapOptimized = computeFileSizeMapOptimized;
+async function getDuplicates(scriptData) {
+  const Audit = require('../lighthouse/lighthouse-core/audits/byte-efficiency/bundle-duplication.js');
+  const datas = Object.values(scriptData).filter(data => data.map);
+
+  const SourceMaps = datas.map(data => {
+    return {
+      scriptUrl: data.scriptUrl,
+      map: data.map,
+    };
+  });
+  const ScriptElements = datas.map(data => {
+    return {
+      src: data.scriptUrl,
+      content: data.content,
+    };
+  });
+  const networkRecords = datas.map(data => {
+    return {
+      url: data.scriptUrl,
+      content: data.content,
+    };
+  });
+
+  process.env.SIZE_MODE = 'cdt';
+  const results = await Audit.audit_({ SourceMaps, ScriptElements }, networkRecords);
+  results.items.sort((a, b) => b.wastedBytes - a.wastedBytes);
+  return {
+    ...results,
+    wastedBytes: results.items.reduce((acc, cur) => acc + cur.wastedBytes, 0),
+  };
+}
+
+module.exports = {
+  computeFileSizeMapOptimized,
+  getDuplicates,
+};
