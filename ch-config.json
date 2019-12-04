@@ -25,5 +25,9 @@
       "name": "CourseLanding",
       "url": "https://www.coursehero.com/sitemap/schools/2339-University-of-Texas/departments/1175-BIO/"
     }
+  ],
+  "journeys": [
+    "Doc,Register",
+    "Home,Register,Schools,SchoolLanding,CourseLanding,Doc"
   ]
 }

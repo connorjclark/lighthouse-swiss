@@ -200,6 +200,47 @@ async function main() {
       })
     );
 
+    const groupTable = [];
+
+    const pageGroups = [
+      ...(options.journeys || []).map(journey => journey.split(',')),
+      ...options.pages.map(page => [page.name]),
+    ];
+
+    for (const pagesInGroup of pageGroups) {
+      const urls = pages.filter(page => pagesInGroup.includes(page.name)).map(page => page.url);
+      const relevantScriptData = Object.values(scriptData)
+        .filter(data => data.seen.some(url => urls.includes(url)));
+
+      const sizes = {
+        firstParty: 0,
+        thirdParty: 0,
+        all: 0,
+        duplicated: 0,
+      };
+
+      for (const data of relevantScriptData) {
+        const size = data.content.length;
+
+        sizes.all += size;
+        if (sameOrigin(data.scriptUrl)) sizes.firstParty += size;
+        else sizes.thirdParty += size;
+      }
+
+      const duplicateResults = await getDuplicates(relevantScriptData);
+      sizes.duplicated = duplicateResults.wastedBytes;
+
+      groupTable.push({
+        key: pagesInGroup.join(', '),
+        '1p size (KB)': bytesToKB(sizes.firstParty),
+        '3p size (KB)': bytesToKB(sizes.thirdParty),
+        'all size (KB)': bytesToKB(sizes.all),
+        'duplicated size (KB)': bytesToKB(sizes.duplicated),
+      });
+    }
+
+    printTable(groupTable);
+
     const duplicateResults = await getDuplicates(scriptData);
     console.log('===== bundle duplication', bytesToKB(duplicateResults.wastedBytes), 'KB');
     printTable(
