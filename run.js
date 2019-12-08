@@ -37,16 +37,16 @@ if (flags.configPath) {
 }
 
 options.pages = options.pages || [];
-
-if (flags.filterPage) {
-  const regex = new RegExp(flags.filterPage);
-  options.pages = options.pages.filter(page => {
-    return regex.test(page.name);
-  });
-}
+options.pages = options.pages.filter(page => filterPage(page.name));
 
 // assume all urls have same origin.
 const origin = new URL(options.pages[0].url).origin;
+
+function filterPage(pageName) {
+  if (!flags.filterPage) return true;
+  const regex = new RegExp(flags.filterPage);
+  return regex.test(pageName);
+}
 
 function sanitize(str) {
   return str.replace(/[^a-zA-Z0-9]/g, '-').substring(0, 100);
@@ -244,12 +244,16 @@ async function main() {
     const groupTable = [];
 
     const pageGroups = [
+      options.pages.map(page => page.name),
       ...(options.journeys || []).map(journey => journey.split(',')),
       ...options.pages.map(page => [page.name]),
-    ];
+    ].map(group => group.filter(filterPage).sort());
 
-    for (const pagesInGroup of pageGroups) {
-      // const urls = pages.filter(page => pagesInGroup.includes(page.name)).map(page => page.url);
+    const seenGroup = new Set();
+    for (let pagesInGroup of pageGroups) {
+      if (seenGroup.has(pagesInGroup.join(','))) continue;
+      seenGroup.add(pagesInGroup.join(','));
+
       const relevantScriptData = Object.values(scriptData)
         .filter(data => data.seen.some(name => pagesInGroup.includes(name)));
 
