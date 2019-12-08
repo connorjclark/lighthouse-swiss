@@ -14,6 +14,21 @@
       "url": "https://www.coursehero.com/file/11/030507/"
     },
     {
+      "name": "Doc (locked)",
+      "url": "https://www.coursehero.com/file/11/030507/",
+      "userDataDir": "logged-in-user-data-dir"
+    },
+    {
+      "name": "Payment",
+      "url": "https://www.coursehero.com/payment/",
+      "userDataDir": "logged-in-user-data-dir"
+    },
+    {
+      "name": "Dashboard",
+      "url": "https://www.coursehero.com/home/",
+      "userDataDir": "logged-in-user-data-dir"
+    },
+    {
       "name": "Schools",
       "url": "https://www.coursehero.com/study-materials/"
     },

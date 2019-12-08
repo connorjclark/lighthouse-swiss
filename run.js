@@ -39,8 +39,9 @@ if (flags.configPath) {
 options.pages = options.pages || [];
 
 if (flags.filterPage) {
+  const regex = new RegExp(flags.filterPage);
   options.pages = options.pages.filter(page => {
-    return page.name.includes(flags.filterPage);
+    return regex.test(page.name);
   });
 }
 
@@ -95,6 +96,60 @@ function printTable(table, options = {}) {
   console.log();
 }
 
+async function runLighthouse(page) {
+  const dir = 'data/' + (options.dir || 'default');
+  const urlSanitized = sanitize(`${page.name}-${page.url}`);
+  const outputFolder = `${dir}/${urlSanitized}`;
+  page.dir = outputFolder;
+  if (fs.existsSync(outputFolder)) return;
+  console.log('collect', page.url);
+
+  const args = [
+    __dirname + '/../lighthouse/lighthouse-cli',
+    page.url,
+    '-GA=' + `${outputFolder}/artifacts`,
+    '--output=json',
+    '--output=html',
+    '--output-path=' + outputFolder + '/lh', // LH doesn't let you just specify a folder ...
+  ];
+
+  let chrome;
+  if (page.userDataDir) {
+    // Can't just do this b/c LH will delete the profile.
+    // See https://github.com/GoogleChrome/lighthouse/issues/8957
+    // args.push(`--chrome-flags=--user-data-dir=${dir}/${page.userDataDir}`);
+
+    // So we launch chrome ourselves and pass a port.
+    const chromeLauncher = require('chrome-launcher');
+    chrome = await chromeLauncher.launch({userDataDir: `${dir}/${page.userDataDir}`});
+    args.push(`--port=${chrome.port}`);
+    // Don't delete the logged in state.
+    // Note, this means a warm load will be tested.
+    args.push('--disable-storage-reset');
+  }
+
+  let browser;
+  if (page.puppeteerScript) {
+    const puppeteer = require('puppeteer');
+    const script = require(path.resolve(page.puppeteerScript));
+    const PORT = 8041;
+    browser = await puppeteer.launch({
+      args: [`--remote-debugging-port=${PORT}`],
+      headless: false,
+      defaultViewport: null,
+    });
+    await script(browser);
+    args.push(`--port=${PORT}`);
+  }
+
+  try {
+    execFileSync('node', args);
+  } finally {
+    if (browser) await browser.close();
+    if (chrome) await chrome.kill();
+  }
+}
+
 async function main() {
   const dir = 'data/' + (options.dir || 'default');
   const pages = options.pages;
@@ -102,28 +157,14 @@ async function main() {
   if (options.mode === 'collect') {
     fs.mkdirSync(dir, { recursive: true });
 
-    for (const { url } of pages) {
-      const urlSanitized = sanitize(url);
-      const outputFolder = `${dir}/${urlSanitized}`;
-      if (fs.existsSync(outputFolder)) continue;
-      console.log('collect', url);
-
-      execFileSync('node', [
-        __dirname + '/../lighthouse/lighthouse-cli',
-        url,
-        '-GA=' + `${outputFolder}/artifacts`,
-        '--output=json',
-        '--output=html',
-        '--output-path=' + outputFolder + '/lh', // LH doesn't let you juut specify a folder ...
-      ]);
+    for (const page of pages) {
+      await runLighthouse(page);
     }
 
     const scriptData = {};
-    for (const { url } of pages) {
-      const urlSanitized = sanitize(url);
-      const outputFolder = `${dir}/${urlSanitized}`;
-      const artifacts = require(path.resolve(outputFolder, 'artifacts', 'artifacts.json'));
-      // const lhr = require(path.resolve(outputFolder, 'lh.report.json'));
+    for (const { name, dir } of pages) {
+      const artifacts = require(path.resolve(dir, 'artifacts', 'artifacts.json'));
+      // const lhr = require(path.resolve(dir, 'lh.report.json'));
 
       for (const ScriptElement of artifacts.ScriptElements) {
         if (!ScriptElement.src) continue;
@@ -134,7 +175,7 @@ async function main() {
             seen: [],
           };
         }
-        scriptData[ScriptElement.src].seen.push(url);
+        scriptData[ScriptElement.src].seen.push(name);
       }
 
       for (const SourceMap of artifacts.SourceMaps) {
@@ -169,7 +210,7 @@ async function main() {
       if (!data.map) continue;
 
       console.log('______', data.scriptUrl, bytesToKB(data.content.length), 'KB');
-      console.log('Pages:', data.seen.map(url => pages.find(un => un.url === url).name).sort().join(', '));
+      console.log('Pages:', data.seen.sort().join(', '));
       const consumer = await new SourceMapConsumer(data.map);
       const files = computeFileSizeMapOptimized({ consumer, content: data.content }).files;
       const sortedFiles = Object.entries(files).sort((a, b) => b[1] - a[1]);
@@ -195,7 +236,7 @@ async function main() {
         return {
           key: trimSameOrigin(data.scriptUrl).slice(0, 100),
           'size (KB)': bytesToKB(data.content.length),
-          pages: data.seen.map(url => pages.find(un => un.url === url).name).sort().join(', '),
+          pages: data.seen.sort().join(', '),
         };
       })
     );
@@ -208,9 +249,9 @@ async function main() {
     ];
 
     for (const pagesInGroup of pageGroups) {
-      const urls = pages.filter(page => pagesInGroup.includes(page.name)).map(page => page.url);
+      // const urls = pages.filter(page => pagesInGroup.includes(page.name)).map(page => page.url);
       const relevantScriptData = Object.values(scriptData)
-        .filter(data => data.seen.some(url => urls.includes(url)));
+        .filter(data => data.seen.some(name => pagesInGroup.includes(name)));
 
       const sizes = {
         firstParty: 0,
@@ -245,10 +286,11 @@ async function main() {
     console.log('===== bundle duplication', bytesToKB(duplicateResults.wastedBytes), 'KB');
     printTable(
       duplicateResults.items.map(item => {
+        if (item.source === 'Other') return; // TODO remove threshold so no Other.
         return {
           key: item.source,
           'duplicated (KB)': bytesToKB(item.wastedBytes),
-          occurrence: item.multi.wastedBytes.length,
+          occurrence: item.multi.totalBytes.length,
         };
       }),
       { sumProp: 'duplicated (KB)', limit: 15 }

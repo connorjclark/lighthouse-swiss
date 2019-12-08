@@ -64,6 +64,7 @@ function computeFileSizeMapOptimized(sourceMapData) {
 
 async function getDuplicates(scriptData) {
   const Audit = require('../lighthouse/lighthouse-core/audits/byte-efficiency/bundle-duplication.js');
+  const makeDevtoolsLog = require('../lighthouse/lighthouse-core/test/network-records-to-devtools-log.js');
   const datas = Object.values(scriptData).filter(data => data.map);
 
   const SourceMaps = datas.map(data => {
@@ -85,8 +86,13 @@ async function getDuplicates(scriptData) {
     };
   });
 
-  process.env.SIZE_MODE = 'cdt';
-  const results = await Audit.audit_({ SourceMaps, ScriptElements }, networkRecords);
+  const context = {computedCache: new Map()};
+  const artifacts = {
+    devtoolsLogs: {defaultPass: makeDevtoolsLog(networkRecords)},
+    SourceMaps,
+    ScriptElements,
+  };
+  const results = await Audit.audit_(artifacts, networkRecords, context);
   results.items.sort((a, b) => b.wastedBytes - a.wastedBytes);
   return {
     ...results,
