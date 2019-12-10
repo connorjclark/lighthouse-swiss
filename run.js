@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { SourceMapConsumer } = require('source-map');
-const { computeFileSizeMapOptimized, getDuplicates } = require('./lib.js');
+const { computeFileSizeMapOptimized, getDuplicates, getUnused } = require('./lib.js');
 
 const flags = yargs
   .array('pages')
@@ -173,6 +173,7 @@ async function main() {
             scriptUrl: ScriptElement.src,
             content: ScriptElement.content || '',
             seen: [],
+            coverage: [],
           };
         }
         scriptData[ScriptElement.src].seen.push(name);
@@ -182,6 +183,11 @@ async function main() {
         if (!SourceMap.scriptUrl) continue;
         scriptData[SourceMap.scriptUrl].sourceMapUrl = SourceMap.sourceMapUrl;
         scriptData[SourceMap.scriptUrl].map = SourceMap.map;
+      }
+
+      for (const JsUsage of artifacts.JsUsage) {
+        if (!JsUsage.url || !scriptData[JsUsage.url]) continue;
+        scriptData[JsUsage.url].coverage.push(JsUsage.functions);
       }
     }
 
@@ -299,6 +305,9 @@ async function main() {
       }),
       { sumProp: 'duplicated (KB)', limit: 15 }
     );
+
+    // const unusedResults = await getUnused(scriptData);
+    // console.log(unusedResults);
   }
 }
 
