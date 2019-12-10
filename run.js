@@ -306,8 +306,9 @@ async function main() {
       { sumProp: 'duplicated (KB)', limit: 15 }
     );
 
+    // TODO: Not sure this works yet.
     // const unusedResults = await getUnused(scriptData);
-    // console.log(unusedResults);
+    // console.dir(unusedResults.items[0]);
   }
 }
 
