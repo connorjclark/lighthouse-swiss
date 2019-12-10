@@ -294,7 +294,7 @@ async function main() {
         return {
           key: item.source,
           'duplicated (KB)': bytesToKB(item.wastedBytes),
-          occurrence: item.multi.totalBytes.length,
+          occurrence: item.urls.length,
         };
       }),
       { sumProp: 'duplicated (KB)', limit: 15 }
