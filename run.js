@@ -107,6 +107,7 @@ async function runLighthouse(page) {
   const args = [
     __dirname + '/../lighthouse/lighthouse-cli',
     page.url,
+    '--config-path=../lighthouse/lighthouse-core/config/source-maps-config.js',
     '-GA=' + `${outputFolder}/artifacts`,
     '--output=json',
     '--output=html',

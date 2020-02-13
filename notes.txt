@@ -1,5 +1,10 @@
 node run.js --config-path ch-config.json
 
+Set up the logged in state:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir=data/$dir/logged-in-user-data-dir
+  (then go log in to the site)
+
+
 du -sh data/ch/js/*.js | sort -hr
 
 open data/ch/**/lh.report.html

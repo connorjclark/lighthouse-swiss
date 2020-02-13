@@ -1,3 +1,7 @@
+// TODO: use master lighthouse
+// currently relies on origin/js-analysis-all branch being checked out
+// in ../lighthouse
+
 const assert = require('assert');
 
 // Lifted from source-map-explorer.
