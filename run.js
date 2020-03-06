@@ -107,7 +107,7 @@ async function runLighthouse(page) {
   const args = [
     __dirname + '/../lighthouse/lighthouse-cli',
     page.url,
-    '--config-path=../lighthouse/lighthouse-core/config/source-maps-config.js',
+    '--config-path=../lighthouse/lighthouse-core/config/experimental-config.js',
     '-GA=' + `${outputFolder}/artifacts`,
     '--output=json',
     '--output=html',
@@ -174,7 +174,7 @@ async function main() {
             scriptUrl: ScriptElement.src,
             content: ScriptElement.content || '',
             seen: [],
-            coverage: [],
+            scriptCoverages: [],
           };
         }
         scriptData[ScriptElement.src].seen.push(name);
@@ -186,9 +186,9 @@ async function main() {
         scriptData[SourceMap.scriptUrl].map = SourceMap.map;
       }
 
-      for (const JsUsage of artifacts.JsUsage) {
-        if (!JsUsage.url || !scriptData[JsUsage.url]) continue;
-        scriptData[JsUsage.url].coverage.push(JsUsage.functions);
+      for (const scriptCoverage of artifacts.JsUsage) {
+        if (!scriptCoverage.url || !scriptData[scriptCoverage.url]) continue;
+        scriptData[scriptCoverage.url].scriptCoverages.push(scriptCoverage);
       }
     }
 
@@ -282,12 +282,15 @@ async function main() {
       const duplicateResults = await getDuplicates(relevantScriptData);
       sizes.duplicated = duplicateResults.wastedBytes;
 
+      const unusedResults = await getUnused(relevantScriptData);
+
       groupTable.push({
         key: pagesInGroup.join(', '),
         '1p size (KB)': bytesToKB(sizes.firstParty),
         '3p size (KB)': bytesToKB(sizes.thirdParty),
         'all size (KB)': bytesToKB(sizes.all),
         'duplicated size (KB)': bytesToKB(sizes.duplicated),
+        'unused size (KB)': bytesToKB(unusedResults.wastedBytes),
       });
     }
 
@@ -307,9 +310,18 @@ async function main() {
       { sumProp: 'duplicated (KB)', limit: 15 }
     );
 
-    // TODO: Not sure this works yet.
-    // const unusedResults = await getUnused(scriptData);
-    // console.dir(unusedResults.items[0]);
+    const unusedResults = await getUnused(scriptData);
+    console.log('===== unused javascript', bytesToKB(unusedResults.wastedBytes), 'KB');
+    printTable(
+      unusedResults.items.map(item => {
+        return {
+          key: item.url,
+          'unused (KB)': bytesToKB(item.wastedBytes),
+          '%': Math.round(item.wastedPercent),
+        };
+      }),
+      { sumProp: 'unused (KB)', limit: 15 }
+    );
   }
 }
 
